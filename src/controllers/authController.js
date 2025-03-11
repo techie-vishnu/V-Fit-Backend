@@ -267,11 +267,12 @@ exports.updateUser = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
     try {
         let { limit, page } = req.query;
-        limit = limit ?? 50;
-        page = page ?? 1;
+        limit = parseInt(limit ?? 50);
+        page = parseInt(page ?? 1);
         const offset = (page - 1) * limit;
 
         const users = await User.find()
+            .select(["-password", "-__v"])
             .sort({ lastLogin: -1 })
             .skip(offset)
             .limit(limit);

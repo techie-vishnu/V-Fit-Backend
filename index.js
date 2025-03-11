@@ -8,7 +8,7 @@ const cors = require('cors');
 
 // const productRoutes = require('./src/routes/productRoutes');
 const authRoutes = require('./src/routes/authRoutes');
-
+const membershipRoutes = require('./src/routes/membershipRoutes')
 
 // Connect to DB
 connectDb();
@@ -29,8 +29,8 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 // Routes
-// app.use('/products', productRoutes);
 app.use('/api', authRoutes);
+app.use('/api', membershipRoutes);
 app.use('/', (req, res) => {
     res.send("Welcome");
 });

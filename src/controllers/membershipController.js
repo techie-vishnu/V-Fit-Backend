@@ -24,8 +24,31 @@ exports.addMembership = async (req, res) => {
         }
 
         // Calculate End date
-        let calculatedEndDate = new Date();
-        calculatedEndDate.setDate(Date(startDate).getDate() + plan.duration);
+        let calculatedEndDate = new Date(startDate);
+        let duration = 0;
+        let type = 'days';
+        switch (plan.durationUnit) {
+            case "Year":
+                duration = plan.duration * 12;
+                type = 'months';
+                break;
+            case "Months":
+                duration = plan.duration;
+                type = 'months';
+                break;
+            case "Month":
+                duration = plan.duration;
+                type = 'months';
+                break;
+            default:
+                duration = plan.duration;
+                break;
+        }
+        if (type === 'months') {
+            calculatedEndDate.setMonth(calculatedEndDate.getMonth() + duration);
+        } else {
+            calculatedEndDate.setDate(calculatedEndDate.getDate() + duration);
+        }
 
         const membership = new Membership({
             planId, userId, price, startDate, endDate: calculatedEndDate
@@ -204,7 +227,7 @@ exports.deleteMembership = async (req, res) => {
 
 exports.addMembershipPlan = async (req, res) => {
     try {
-        const { name, price, personalTraining, duration, durationUnit } = req.query;
+        const { name, price, personalTraining, duration, durationUnit } = req.body;
 
         const plan = await MembershipPlan.findOne({ name, personalTraining, status: true });
         if (plan) {

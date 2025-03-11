@@ -3,7 +3,7 @@ const router = express.Router();
 const utils = require('../utils');
 const { adminUser } = require('../middlewares/adminUser');
 const { authUser } = require('../middlewares/authUser');
-const { getMyMemberships, addMembership, updateMembership, deleteMembership, getMembershipById, getAllMemberships, addMembershipPlan, updateMembershipPlan, deleteMembershipPlan, getMembershipPlans } = require('../controllers/membershipController');
+const { getMyMemberships, addMembership, updateMembership, deleteMembership, getMembershipById, getAllMemberships, addMembershipPlan, updateMembershipPlan, deleteMembershipPlan, getMembershipPlans, getMembershipPlanById } = require('../controllers/membershipController');
 
 // User Routes
 router.get('/my-memberships', authUser, getMyMemberships);
