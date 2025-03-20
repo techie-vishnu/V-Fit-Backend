@@ -3,7 +3,7 @@ require('dotenv').config();
 
 const authUser = (req, res, next) => {
     try {
-        const { token } = req.cookies;
+        let { token } = req.cookies;
         if (!token) {
             token = req.headers.authorization.split(' ')[1];
         }

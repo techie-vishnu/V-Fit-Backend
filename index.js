@@ -5,10 +5,11 @@ const { connectDb } = require('./src/config/db');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const { handleGenericErrors } = require('./src/errors/genericError');
 
 // const productRoutes = require('./src/routes/productRoutes');
 const authRoutes = require('./src/routes/authRoutes');
-const membershipRoutes = require('./src/routes/membershipRoutes')
+const membershipRoutes = require('./src/routes/membershipRoutes');
 
 // Connect to DB
 connectDb();
@@ -35,6 +36,14 @@ app.use('/', (req, res) => {
     res.send("Welcome");
 });
 
+app.use(handleGenericErrors)
+
+app.all('*', (req, res) => {
+    res.status(400).json({
+        success: false,
+        message: 'End point does not exists'
+    })
+})
 
 // Run app
 app.listen(process.env.PORT, (error) => {

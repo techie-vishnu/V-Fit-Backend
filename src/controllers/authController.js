@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 
 
 
-exports.registerUser = async (req, res) => {
+exports.registerUser = async (req, res, next) => {
     try {
         const { name, username, email, mobile, password, confirmPassword, gender } = req.body;
         const user = await User.findOne({ $or: [{ username: username.trim() }, { email: email.trim() }] });
@@ -35,14 +35,11 @@ exports.registerUser = async (req, res) => {
             message: "User created successfully."
         })
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        })
+        next(error)
     }
 }
 
-exports.usernameExists = async (req, res) => {
+exports.usernameExists = async (req, res, next) => {
     const { username } = req.body;
     try {
         const user = User.findOne({ username: username.trim() });
@@ -59,14 +56,11 @@ exports.usernameExists = async (req, res) => {
             });
         }
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
 
-exports.emailExists = async (req, res) => {
+exports.emailExists = async (req, res, next) => {
     const { email } = req.body;
     try {
         const user = User.findOne({ email: email.trim() });
@@ -83,14 +77,11 @@ exports.emailExists = async (req, res) => {
             });
         }
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
 
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
     try {
         const { username, password } = req.body;
         const userExists = await User.findOne({
@@ -134,14 +125,11 @@ exports.login = async (req, res) => {
             data: userData
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Authentication failed try Again'
-        });
+        next(error)
     }
 }
 
-exports.logout = (req, res) => {
+exports.logout = (req, res, next) => {
     try {
         /* 
         You may want to perform additional
@@ -154,14 +142,11 @@ exports.logout = (req, res) => {
             error: 'Logged out successfully'
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
 
-exports.userProfile = async (req, res) => {
+exports.userProfile = async (req, res, next) => {
     try {
         const { email } = req.user;
         const userData = await User.findOne({ email }).select(["-_id", "-password", "-__v"]);
@@ -178,14 +163,11 @@ exports.userProfile = async (req, res) => {
             data: userData
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
 
-exports.deleteUser = async (req, res) => {
+exports.deleteUser = async (req, res, next) => {
     try {
         const { id } = req.params;
         const deletedUser = await User.findByIdAndDelete(id);
@@ -195,11 +177,11 @@ exports.deleteUser = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        next(error)
     }
 }
 
-exports.updateUser = async (req, res) => {
+exports.updateUser = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { name, username, email, mobile, password, confirmPassword } = req.body;
@@ -260,37 +242,77 @@ exports.updateUser = async (req, res) => {
         await user.save();
 
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        next(error)
     }
 }
 
-exports.getAllUsers = async (req, res) => {
+exports.getAllUsers = async (req, res, next) => {
     try {
-        let { limit, page } = req.query;
+        // Pagination
+        let { limit, page, q, sortBy, sortDir } = req.query;
         limit = parseInt(limit ?? 50);
         page = parseInt(page ?? 1);
         const offset = (page - 1) * limit;
 
-        const users = await User.find()
+        // User Search Query
+        let query = {};
+        if (q && q !== '') {
+            query = {
+                $or: [
+                    { name: { $regex: q, $options: "i" } },
+                    { email: { $regex: q, $options: "i" } },
+                    { username: { $regex: q, $options: "i" } }
+                ]
+            }
+        }
+
+        // Column Sorting
+        let sort = { lastLogin: -1 };
+        if (sortBy && sortDir) {
+            const dir = sortDir === 'desc' ? -1 : 1;
+            switch (sortBy) {
+                case '_id':
+                    sort = { _id: dir }
+                    break;
+                case 'name':
+                    sort = { name: dir }
+                    break;
+                case 'username':
+                    sort = { username: dir }
+                    break;
+                case 'email':
+                    sort = { email: dir }
+                    break;
+                case 'gender':
+                    sort = { gender: dir }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Total Records for Pagination
+        const total = await User.countDocuments(query);
+
+        // Fetch Users
+        const users = await User.find(query)
             .select(["-password", "-__v"])
-            .sort({ lastLogin: -1 })
+            .sort(sort)
             .skip(offset)
             .limit(limit);
         
         return res.status(200).json({
             success: true,
-            data: users
+            users,
+            total
         });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
 
-exports.assignUserRole = async (req, res) => {
+exports.assignUserRole = async (req, res, next) => {
     try {
         let { id } = req.params;
         let { roles } = req.query;
@@ -314,9 +336,6 @@ exports.assignUserRole = async (req, res) => {
         });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        next(error)
     }
 }
