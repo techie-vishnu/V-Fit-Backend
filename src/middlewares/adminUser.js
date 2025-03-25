@@ -25,7 +25,9 @@ const adminUser = (req, res, next) => {
 
         if (verifiedUser.data.roles && Array.isArray(verifiedUser.data.roles) && verifiedUser.data.roles.includes("Admin")) {
             req.user = verifiedUser.data;
-            next(); 
+            const newToken = jwt.sign({ data: verifiedUser.data }, process.env.SECRET_KEY, { expiresIn: '1h' });
+            res.cookie('token', newToken);
+            next();
         } else {
             return res.status(401).json({
                 success: false,

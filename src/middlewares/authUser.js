@@ -24,12 +24,16 @@ const authUser = (req, res, next) => {
         }
 
         req.user = verifiedUser.data;
+
+        const newToken = jwt.sign({ data: verifiedUser.data }, process.env.SECRET_KEY, { expiresIn: '1h' });
+        res.cookie('token', newToken);
+
         next();
 
     } catch (error) {
         return res.status(401).json({
             success: false,
-            error: 'Authentication failed try Again'
+            error: error.message || 'Authentication failed try Again'
         });
     }
 }

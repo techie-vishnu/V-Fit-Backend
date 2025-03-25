@@ -131,16 +131,69 @@ exports.updateMembership = async (req, res) => {
 exports.getAllMemberships = async (req, res) => {
     try {
 
-        let { limit, page } = req.query;
-        limit = limit ?? 50;
-        page = page ?? 1;
+        // Pagination
+        let { limit, page, q, sortBy, sortDir } = req.query;
+        limit = parseInt(limit ?? 50);
+        page = parseInt(page ?? 1);
         const offset = (page - 1) * limit;
 
-        let memberships = await Membership.find().sort({ createdAt: -1, endDate: -1 }).skip(offset).limit(limit);
+        // User Search Query
+        let query = {};
+        if (q && q !== '') {
+            query = {
+                $or: [
+                    { name: { $regex: q, $options: "i" } }
+                ]
+            }
+        }
+
+        // Column Sorting
+        let sort = { updatedAt: -1 };
+        if (sortBy && sortDir) {
+            const dir = sortDir === 'desc' ? -1 : 1;
+            switch (sortBy) {
+                case '_id':
+                    sort = { _id: dir }
+                    break;
+                case 'name':
+                    sort = { name: dir }
+                    break;
+                case 'price':
+                    sort = { price: dir }
+                    break;
+                case 'duration':
+                    sort = { duration: dir }
+                    break;
+                case 'personalTraining':
+                    sort = { personalTraining: dir }
+                    break;
+                case 'createdAt':
+                    sort = { createdAt: dir }
+                    break;
+                case 'updatedAt':
+                    sort = { updatedAt: dir }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Total Records for Pagination
+        const total = await Membership.countDocuments(query);
+
+        const memberships = await Membership.find(query)
+            .sort({ createdAt: -1, endDate: -1 })
+            .populate({ path: 'userId', model: 'User', select: '_id name username' })
+            .populate({ path: 'planId', model: 'MembershipPlan', select: '_id name price duration durationUnit' })
+            .populate({ path: 'createdBy', model: 'User', select: '_id name username' })
+            .populate({ path: 'updatedBy', model: 'User', select: '_id name username' })
+            .skip(offset)
+            .limit(limit);
 
         return res.status(200).json({
             success: true,
-            data: memberships
+            memberships,
+            total
         });
     } catch (error) {
         return res.status(500).json({
@@ -257,10 +310,10 @@ exports.addMembershipPlan = async (req, res) => {
 
 exports.updateMembershipPlan = async (req, res) => {
     try {
-        const { planId } = req.params;
-        const { name, price, personalTraining, duration, durationUnit } = req.query;
+        const { id } = req.params;
+        const { name, price, personalTraining, duration, durationUnit } = req.body;
 
-        const plan = await MembershipPlan.findById(planId);
+        let plan = await MembershipPlan.findById(id);
         if (!plan) {
             return res.status(404).json({
                 success: false,
@@ -269,10 +322,10 @@ exports.updateMembershipPlan = async (req, res) => {
         }
 
         if (name) {
-            plan.name = name;
+            plan.name = name.trim();
         }
         if (price) {
-            plan.price = price;
+            plan.price = parseFloat(price);
         }
         if (personalTraining) {
             plan.personalTraining = personalTraining;
@@ -302,16 +355,68 @@ exports.updateMembershipPlan = async (req, res) => {
 
 exports.getMembershipPlans = async (req, res) => {
     try {
-        let { limit, page } = req.query;
-        limit = limit ?? 50;
-        page = page ?? 1;
+        // Pagination
+        let { limit, page, q, sortBy, sortDir } = req.query;
+        limit = parseInt(limit ?? 50);
+        page = parseInt(page ?? 1);
         const offset = (page - 1) * limit;
 
-        const plans = await MembershipPlan.find().skip(offset).limit(limit);
+        // User Search Query
+        let query = {};
+        if (q && q !== '') {
+            query = {
+                $or: [
+                    { name: { $regex: q, $options: "i" } }
+                ]
+            }
+        }
+
+        // Column Sorting
+        let sort = { updatedAt: -1 };
+        if (sortBy && sortDir) {
+            const dir = sortDir === 'desc' ? -1 : 1;
+            switch (sortBy) {
+                case '_id':
+                    sort = { _id: dir }
+                    break;
+                case 'name':
+                    sort = { name: dir }
+                    break;
+                case 'price':
+                    sort = { price: dir }
+                    break;
+                case 'duration':
+                    sort = { duration: dir }
+                    break;
+                case 'personalTraining':
+                    sort = { personalTraining: dir }
+                    break;
+                case 'createdAt':
+                    sort = { createdAt: dir }
+                    break;
+                case 'updatedAt':
+                    sort = { updatedAt: dir }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Total Records for Pagination
+        const total = await MembershipPlan.countDocuments(query);
+
+        const plans = await MembershipPlan.find(query)
+            .select(["-__v"])
+            .populate({ path: 'createdBy', model: 'User', select: '_id name username' })
+            .populate({ path: 'updatedBy', model: 'User', select: '_id name username' })
+            .sort(sort)
+            .skip(offset)
+            .limit(limit);
 
         return res.status(200).json({
             success: true,
-            data: plans
+            plans,
+            total
         });
     } catch (error) {
         return res.status(404).json({
@@ -324,8 +429,8 @@ exports.getMembershipPlans = async (req, res) => {
 exports.getMembershipPlanById = async (req, res) => {
     try {
         let { id } = req.params;
-        let membership = await MembershipPlan.findById(id);
-        if (!membership) {
+        const plan = await MembershipPlan.findById(id);
+        if (!plan) {
             return res.status(404).json({
                 success: false,
                 error: 'Membership Plan not found'
@@ -333,7 +438,7 @@ exports.getMembershipPlanById = async (req, res) => {
         }
         return res.status(200).json({
             success: true,
-            data: membership
+            plan
         });
     } catch (error) {
         return res.status(500).json({

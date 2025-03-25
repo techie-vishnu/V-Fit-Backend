@@ -9,7 +9,7 @@ const { getMyMemberships, addMembership, updateMembership, deleteMembership, get
 router.get('/my-memberships', authUser, getMyMemberships);
 router.get('/memberships/:id', authUser, utils.validateId, getMembershipById);
 
-router.get('/membership-plans', authUser, getMembershipPlans);
+router.get('/membership-plans', getMembershipPlans);
 router.get('/membership-plans/:id', authUser, utils.validateId, getMembershipPlanById);
 
 

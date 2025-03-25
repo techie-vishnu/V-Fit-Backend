@@ -167,6 +167,25 @@ exports.userProfile = async (req, res, next) => {
     }
 }
 
+exports.getUserById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id).select(["-password", "-__v"]);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: "User not found."
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            user
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
 exports.deleteUser = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -184,7 +203,7 @@ exports.deleteUser = async (req, res, next) => {
 exports.updateUser = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, username, email, mobile, password, confirmPassword } = req.body;
+        const { name, username, email, mobile, gender, roles, password, confirmPassword } = req.body;
 
         const user = await User.findById(id);
         if (!user) {
@@ -233,7 +252,36 @@ exports.updateUser = async (req, res, next) => {
             }
             user.mobile = mobile;
         }
+        if (gender) {
+            user.gender = gender;
+        }
+        if (roles && Array.isArray(roles) && roles.length > 0) {
+            const currentRoles = user.roles;
+            const isAdmin = currentRoles.indexOf('Admin') !== -1;
+            // Connot Remove admin role of a Admin user
+            if (isAdmin && roles.indexOf('Admin') !== -1) {
+                return res.status(405).json({
+                    success: false,
+                    error: 'You cannot remove Admin role of the User.'
+                });
+            }
+
+            let newRoles = [];
+            roles.forEach((role, i) => {
+                if (newRoles.indexOf(role) !== -1) {
+                    newRoles.push(role);
+                }
+            });
+
+            user.roles = newRoles;
+        }
         if (password) {
+            if (password !== confirmPassword) {
+                return res.status(405).json({
+                    success: false,
+                    error: 'Passwords do not match.'
+                });
+            }
             const hashedPwd = bcrypt.hashSync(password, 10);
             user.password = hashedPwd;
         }
@@ -241,6 +289,7 @@ exports.updateUser = async (req, res, next) => {
         user.updatedAt = Date.now();
         await user.save();
 
+        return res.status(200).json({ success: true, message: "User updated successfully." });
     } catch (error) {
         next(error)
     }
@@ -300,7 +349,7 @@ exports.getAllUsers = async (req, res, next) => {
             .sort(sort)
             .skip(offset)
             .limit(limit);
-        
+
         return res.status(200).json({
             success: true,
             users,
