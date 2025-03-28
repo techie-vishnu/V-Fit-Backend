@@ -5,7 +5,7 @@ const User = require("../models/userModel");
 
 exports.addMembership = async (req, res) => {
     try {
-        const { planId, userId, price, startDate, endDate } = req.query;
+        const { planId, userId, price, startDate, personalTraining, paymentStatus, status } = req.body;
 
         const plan = await MembershipPlan.findById(planId);
         if (!plan) {
@@ -50,9 +50,21 @@ exports.addMembership = async (req, res) => {
             calculatedEndDate.setDate(calculatedEndDate.getDate() + duration);
         }
 
-        const membership = new Membership({
-            planId, userId, price, startDate, endDate: calculatedEndDate
-        });
+        let m = {
+            planId, userId, price, startDate, endDate: calculatedEndDate, createdBy: req.user._id, updatedBy: req.user._id
+        }
+
+        if (personalTraining) {
+            m.personalTraining = personalTraining;
+        }
+        if (paymentStatus) {
+            m.paymentStatus = paymentStatus;
+        }
+        if (status) {
+            m.status = status;
+        }
+
+        const membership = new Membership(m);
 
         await membership.save();
 
@@ -70,9 +82,10 @@ exports.addMembership = async (req, res) => {
 
 exports.updateMembership = async (req, res) => {
     try {
-        const { membershipId, planId, userId, price, startDate, endDate } = req.query;
+        const { id } = req.params;
+        const { planId, userId, price, startDate, personalTraining, paymentStatus, status } = req.body;
 
-        const membership = await Membership.findById(membershipId);
+        const membership = await Membership.findById(id);
 
         if (!membership) {
             return res.status(404).json({
@@ -81,8 +94,8 @@ exports.updateMembership = async (req, res) => {
             });
         }
 
+        const plan = await MembershipPlan.findById(planId ?? membership.planId);
         if (planId) {
-            const plan = await MembershipPlan.findById(planId);
             if (!plan) {
                 return res.status(404).json({
                     success: false,
@@ -109,9 +122,43 @@ exports.updateMembership = async (req, res) => {
 
         if (startDate) {
             membership.startDate = startDate;
-            let calculatedEndDate = new Date();
-            calculatedEndDate.setDate(Date(startDate).getDate() + plan.duration);
+
+            let calculatedEndDate = new Date(startDate);
+            let duration = 0;
+            let type = 'days';
+            switch (plan.durationUnit) {
+                case "Year":
+                    duration = plan.duration * 12;
+                    type = 'months';
+                    break;
+                case "Months":
+                    duration = plan.duration;
+                    type = 'months';
+                    break;
+                case "Month":
+                    duration = plan.duration;
+                    type = 'months';
+                    break;
+                default:
+                    duration = plan.duration;
+                    break;
+            }
+            if (type === 'months') {
+                calculatedEndDate.setMonth(calculatedEndDate.getMonth() + duration);
+            } else {
+                calculatedEndDate.setDate(calculatedEndDate.getDate() + duration);
+            }
             membership.endDate = calculatedEndDate;
+        }
+
+        if (personalTraining) {
+            membership.personalTraining = personalTraining;
+        }
+        if (paymentStatus) {
+            membership.paymentStatus = paymentStatus;
+        }
+        if (status) {
+            membership.status = status;
         }
 
         await membership.save();
@@ -211,7 +258,7 @@ exports.getMyMemberships = async (req, res) => {
         page = page ?? 1;
         const offset = (page - 1) * limit;
 
-        let memberships = await Membership.find({ userId: res.user._id })
+        let memberships = await Membership.find({ userId: req.user._id })
             .sort({ createdAt: -1, endDate: -1 })
             .skip(offset)
             .limit(limit);

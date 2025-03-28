@@ -388,3 +388,26 @@ exports.assignUserRole = async (req, res, next) => {
         next(error)
     }
 }
+
+exports.getClients = async (req, res, next) => {
+    const { type, trainerId } = req.body;
+
+    let query = { roles: { $in: ['Client'] }, enabled: true };
+    if (trainerId) {
+        const trainer = await User.find({ roles: { $in: ['Trainer'] }, enabled: true });
+        if (!trainer) {
+            return res.status(404).json({
+                success: false,
+                error: "Trainer not valid"
+            });
+        }
+        query[trainerId] = trainerId;
+    }
+
+    const clients = await User.find(query).select(["-password", "-__v", "-roles"]);
+
+    return res.status(200).json({
+        success: true,
+        clients
+    });
+}

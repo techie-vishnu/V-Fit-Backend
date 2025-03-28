@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser, login, logout, userProfile, getUserById, getAllUsers, updateUser, assignUserRole } = require('../controllers/authController');
+const {
+    registerUser,
+    login,
+    logout,
+    userProfile,
+    getUserById,
+    getAllUsers,
+    updateUser,
+    assignUserRole,
+    getClients
+} = require('../controllers/authController');
 const { authUser } = require('../middlewares/authUser');
 const { adminUser } = require('../middlewares/adminUser');
 
@@ -18,6 +28,7 @@ router.get('/auth/users', adminUser, getAllUsers);
 router.patch('/auth/user/:id', adminUser, updateUser);
 router.patch('/auth/users/assignrole', adminUser, assignUserRole);
 
+router.get('/clients', authUser, getClients);
 
 
 module.exports = router;
