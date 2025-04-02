@@ -10,6 +10,7 @@ const { handleGenericErrors } = require('./src/errors/genericError');
 // const productRoutes = require('./src/routes/productRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const membershipRoutes = require('./src/routes/membershipRoutes');
+const workoutRoutes = require('./src/routes/workoutRoutes');
 
 // Connect to DB
 connectDb();
@@ -32,6 +33,7 @@ app.use(cookieParser());
 // Routes
 app.use('/api', authRoutes);
 app.use('/api', membershipRoutes);
+app.use('/api', workoutRoutes);
 app.use('/', (req, res) => {
     res.send("Welcome");
 });
