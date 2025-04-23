@@ -105,7 +105,7 @@ exports.login = async (req, res, next) => {
 
         const token = jwt.sign({ data: userExists }, process.env.SECRET_KEY, { expiresIn: '1h' });
         res.cookie('token', token);
-        userExists.last_login = Date.now();
+        userExists.lastLogin = Date.now();
         await userExists.save();
 
         const userData = {
@@ -287,6 +287,105 @@ exports.updateUser = async (req, res, next) => {
         }
 
         user.updatedAt = Date.now();
+        user.updatedBy = req.user._id;
+
+        await user.save();
+
+        return res.status(200).json({ success: true, message: "User updated successfully." });
+    } catch (error) {
+        next(error)
+    }
+}
+
+exports.updateMyProfile = async (req, res, next) => {
+    try {
+        const id = req.user._id;
+        const { name, username, email, mobile, gender, roles, password, confirmPassword } = req.body;
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(405).json({
+                success: false,
+                error: 'User do not exists.'
+            });
+        }
+
+        if (name) {
+            user.name = name;
+        }
+        if (email) {
+            if (user.email !== email.trim()) {
+                const emailExists = await User.findOne({ email: email.trim() });
+                if (emailExists) {
+                    return res.status(405).json({
+                        success: false,
+                        error: 'Email already exists.'
+                    });
+                }
+            }
+            user.email = email.trim();
+        }
+        if (username) {
+            if (user.username !== username.trim()) {
+                const usernameExists = await User.findOne({ username: username.trim() });
+                if (usernameExists) {
+                    return res.status(405).json({
+                        success: false,
+                        error: 'Username already exists.'
+                    });
+                }
+            }
+            user.username = username.trim();
+        }
+        if (mobile) {
+            if (user.mobile !== mobile) {
+                const mobileExists = await User.findOne({ mobile });
+                if (mobileExists) {
+                    return res.status(405).json({
+                        success: false,
+                        error: 'Mobile number already exists.'
+                    });
+                }
+            }
+            user.mobile = mobile;
+        }
+        if (gender) {
+            user.gender = gender;
+        }
+        if (roles && Array.isArray(roles) && roles.length > 0) {
+            const currentRoles = user.roles;
+            const isAdmin = currentRoles.indexOf('Admin') !== -1;
+            // Connot Remove admin role of a Admin user
+            if (isAdmin && roles.indexOf('Admin') !== -1) {
+                return res.status(405).json({
+                    success: false,
+                    error: 'You cannot remove Admin role of the User.'
+                });
+            }
+
+            let newRoles = [];
+            roles.forEach((role, i) => {
+                if (newRoles.indexOf(role) !== -1) {
+                    newRoles.push(role);
+                }
+            });
+
+            user.roles = newRoles;
+        }
+        if (password) {
+            if (password !== confirmPassword) {
+                return res.status(405).json({
+                    success: false,
+                    error: 'Passwords do not match.'
+                });
+            }
+            const hashedPwd = bcrypt.hashSync(password, 10);
+            user.password = hashedPwd;
+        }
+
+        user.updatedAt = Date.now();
+        user.updatedBy = req.user._id;
+
         await user.save();
 
         return res.status(200).json({ success: true, message: "User updated successfully." });
@@ -376,7 +475,7 @@ exports.assignUserRole = async (req, res, next) => {
 
         let currentRoles = user.roles;
 
-        user.updated = req.user._id;
+        user.updatedBy = req.user._id;
         await user.save();
 
         return res.status(200).json({
@@ -391,17 +490,32 @@ exports.assignUserRole = async (req, res, next) => {
 
 exports.getClients = async (req, res, next) => {
     const { type, trainerId } = req.body;
+    const { _id, roles } = req.user;
+    let trainer = null;
 
     let query = { roles: { $in: ['Client'] }, enabled: true };
-    if (trainerId) {
-        const trainer = await User.find({ roles: { $in: ['Trainer'] }, enabled: true });
-        if (!trainer) {
+    if (roles.indexOf('Client') !== -1) {
+        query = { _id };
+    }
+    else if (roles.indexOf('Trainer') !== -1) {
+        trainer = req.user._id;
+    }
+    else if (trainerId) {
+        const user = await User.find({ roles: { $in: ['Trainer'] }, enabled: true });
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 error: "Trainer not valid"
             });
         }
-        query[trainerId] = trainerId;
+        trainer = trainerId;
+    }
+
+    if (trainer) {
+        const clientCount = await User.countDocuments({ trainerId: trainer, enabled: true });
+        if (clientCount > 0) {
+            query['trainerId'] = trainer;
+        }
     }
 
     const clients = await User.find(query).select(["-password", "-__v", "-roles"]);
@@ -410,4 +524,70 @@ exports.getClients = async (req, res, next) => {
         success: true,
         clients
     });
+}
+
+exports.getAllClients = async (req, res, next) => {
+    try {
+        // Pagination
+        let { limit, page, q, sortBy, sortDir } = req.query;
+        limit = parseInt(limit ?? 50);
+        page = parseInt(page ?? 1);
+        const offset = (page - 1) * limit;
+
+        // User Search Query
+        let query = { roles: { $in: ['Client'] }, enabled: true };
+        if (q && q !== '') {
+            Object.assign(query, {
+                $or: [
+                    { name: { $regex: q, $options: "i" } },
+                    { email: { $regex: q, $options: "i" } },
+                    { username: { $regex: q, $options: "i" } }
+                ]
+            })
+        }
+
+        // Column Sorting
+        let sort = { lastLogin: -1 };
+        if (sortBy && sortDir) {
+            const dir = sortDir === 'desc' ? -1 : 1;
+            switch (sortBy) {
+                case '_id':
+                    sort = { _id: dir }
+                    break;
+                case 'name':
+                    sort = { name: dir }
+                    break;
+                case 'username':
+                    sort = { username: dir }
+                    break;
+                case 'email':
+                    sort = { email: dir }
+                    break;
+                case 'gender':
+                    sort = { gender: dir }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Total Records for Pagination
+        const total = await User.countDocuments(query);
+
+        // Fetch Users
+        const users = await User.find(query)
+            .select(["-password", "-__v"])
+            .sort(sort)
+            .skip(offset)
+            .limit(limit);
+
+        return res.status(200).json({
+            success: true,
+            users,
+            total
+        });
+
+    } catch (error) {
+        next(error)
+    }
 }

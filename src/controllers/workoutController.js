@@ -1,4 +1,6 @@
+const assignedWorkouts = require("../models/assignedWorkoutsModel");
 const Exercise = require("../models/exersiceModel");
+const User = require("../models/userModel");
 
 exports.getWorkouts = async (req, res) => {
     try {
@@ -177,7 +179,7 @@ exports.updateWorkout = async (req, res) => {
     }
 }
 
-exports.deleteWorkout = (req, res) => {
+exports.deleteWorkout = (req, res, next) => {
     const { id } = req.params;
 
     res.status(200).json({
@@ -197,4 +199,112 @@ exports.getCategories = async (req, res) => {
         next(error)
     }
 
+}
+
+exports.assignWorkouts = async (req, res, next) => {
+    try {
+        let { userId, date, activities, notes } = req.body;
+
+        if (!userId) {
+            userId = req.user._id;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'userId is not valid.'
+            });
+        }
+
+        if (!date) {
+            date = new Date().toISOString().split('T')[0];
+        } else {
+            date = new Date(date).toISOString().split('T')[0];
+        }
+
+        if (!activities) {
+            return res.status(404).json({
+                success: false,
+                error: 'Activities is required.'
+            });
+        }
+
+        let assignWorkout = await assignedWorkouts.findOne({ user: userId, date: date });
+
+        if (assignWorkout) {
+            assignWorkout.activities = activities;
+            assignWorkout.notes = notes;
+            assignWorkout.updatedBy = req.user._id;
+        } else {
+            assignWorkout = new assignedWorkouts({ user: userId, date, activities, createdBy: req.user._id, updatedBy: req.user._id, notes })
+        }
+
+        await assignWorkout.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Assigned workout saved'
+        });
+    } catch (error) {
+        next(error)
+    }
+
+}
+
+exports.getAssignedWorkouts = async (req, res, next) => {
+    try {
+        let { userId, date } = req.query;
+
+        if (!userId) {
+            userId = req.user._id;
+        }
+        if (!date) {
+            date = new Date().toISOString().split('T')[0];
+        } else {
+            date = new Date(date).toISOString().split('T')[0];
+        }
+        const aWorkouts = await assignedWorkouts.findOne({ user: userId, date }).select(['-_id', '-activities._id']);
+        if (!aWorkouts) {
+            return res.status(200).json({
+                success: false,
+                error: 'Workouts not Assigned.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: aWorkouts
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
+exports.getMyAssignedWorkouts = async (req, res, next) => {
+    try {
+        let { date } = req.query;
+
+        if (!date) {
+            date = new Date().toISOString().split('T')[0];
+        } else {
+            date = new Date(date).toISOString().split('T')[0];
+        }
+        const aWorkouts = await assignedWorkouts.findOne({ user: req.user._id, date })
+            .populate({ path: 'activities.workout', model: 'Exercise', select: '-createdBy -updatedBy' })
+            .select(['-_id', '-activities._id']);
+        if (!aWorkouts) {
+            return res.status(404).json({
+                success: false,
+                error: 'Workouts not Assigned.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: aWorkouts
+        });
+    } catch (error) {
+        next(error)
+    }
 }
